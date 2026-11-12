@@ -12,7 +12,7 @@ local LocalPlayer = Players.LocalPlayer
 local API_URL = "https://working-equal-surprise-added.trycloudflare.com/api/update-stats"
 local UPDATE_INTERVAL = 15 -- Đồng bộ mỗi 15 giây
 
--- Lấy hàm HTTP Request an toàn
+-- Lấy hàm HTTP Request & tên máy từ Config an toàn
 local env = (type(getgenv) == "function" and getgenv()) or _G
 local httpRequest = (type(env.syn) == "table" and env.syn.request)
     or (type(env.http) == "table" and env.http.request)
@@ -24,6 +24,14 @@ local httpRequest = (type(env.syn) == "table" and env.syn.request)
 if type(httpRequest) ~= "function" then
     warn("[Tracker] Executor của bạn không hỗ trợ HTTP Request!")
     return
+end
+
+local function getMachineName()
+    local name = env.MachineName or _G.MachineName
+    if type(name) == "string" and name ~= "" then
+        return name
+    end
+    return "PC"
 end
 
 local matchStats = {
@@ -159,6 +167,7 @@ local function collectGameData()
     local data = {
         username = LocalPlayer.Name,
         userId = LocalPlayer.UserId,
+        machine = getMachineName(),
         gems = stats and stats:FindFirstChild("gem_amount") and stats.gem_amount.Value or 0,
         gold = stats and stats:FindFirstChild("gold_amount") and stats.gold_amount.Value or 0,
         xp = currentXp,
@@ -228,7 +237,7 @@ end
 
 -- Vòng lặp gửi dữ liệu lên Web Dashboard
 task.spawn(function()
-    print("[Tracker] Đã kết nối thành công ->", API_URL)
+    print("[Tracker] Đã kết nối (" .. getMachineName() .. ") ->", API_URL)
     while true do
         local success, err = pcall(function()
             local payload = collectGameData()
