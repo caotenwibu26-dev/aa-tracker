@@ -4,7 +4,7 @@ local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 
 -- Cấu hình API Endpoint của Web Dashboard
-local API_URL = "http://localhost:3000/api/update-stats"
+local API_URL = "https://working-equal-surprise-added.trycloudflare.com/api/update-stats"
 local UPDATE_INTERVAL = 15 -- Đồng bộ mỗi 15 giây
 
 -- Lấy hàm HTTP Request an toàn
