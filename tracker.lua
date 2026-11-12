@@ -1,6 +1,11 @@
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
+
+-- Chờ nhân vật tải xong (tránh lỗi nil khi chạy trong Auto-Execute)
+while not Players.LocalPlayer do
+    task.wait(0.5)
+end
 local LocalPlayer = Players.LocalPlayer
 
 -- Cấu hình API Endpoint của Web Dashboard
@@ -47,7 +52,7 @@ local function updateMatchStatus()
         return
     end
 
-    local pGui = LocalPlayer:FindFirstChild("PlayerGui")
+    local pGui = LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui")
     if not pGui then return end
 
     local resultsUI = pGui:FindFirstChild("ResultsUI")
@@ -121,7 +126,7 @@ local function getMapLocation()
         end
 
         if not mapName then
-            local pGui = LocalPlayer:FindFirstChild("PlayerGui")
+            local pGui = LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui")
             if pGui then
                 for _, label in ipairs(pGui:GetDescendants()) do
                     if label:IsA("TextLabel") and label.Visible and label.Text ~= "" then
@@ -143,6 +148,9 @@ local function getMapLocation()
 end
 
 local function collectGameData()
+    LocalPlayer = Players.LocalPlayer
+    if not LocalPlayer then return nil end
+
     updateMatchStatus()
 
     local stats = LocalPlayer:FindFirstChild("_stats")
@@ -224,13 +232,15 @@ task.spawn(function()
     while true do
         local success, err = pcall(function()
             local payload = collectGameData()
-            local res = httpRequest({
-                Url = API_URL,
-                Method = "POST",
-                Headers = { ["Content-Type"] = "application/json" },
-                Body = HttpService:JSONEncode(payload)
-            })
-            print("[Tracker] Trạng thái gửi:", res and res.StatusCode or "Không có phản hồi")
+            if payload then
+                local res = httpRequest({
+                    Url = API_URL,
+                    Method = "POST",
+                    Headers = { ["Content-Type"] = "application/json" },
+                    Body = HttpService:JSONEncode(payload)
+                })
+                print("[Tracker] Trạng thái gửi:", res and res.StatusCode or "Không có phản hồi")
+            end
         end)
 
         if not success then
