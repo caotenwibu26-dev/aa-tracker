@@ -9,7 +9,7 @@ end
 local LocalPlayer = Players.LocalPlayer
 
 -- Cấu hình API Endpoint của Web Dashboard
-local API_URL = "https://working-equal-surprise-added.trycloudflare.com/api/update-stats"
+local API_URL = "https://fisheries-pursuit-statistical-explicit.trycloudflare.com"
 local UPDATE_INTERVAL = 15 -- Đồng bộ mỗi 15 giây
 
 -- Lấy hàm HTTP Request & tên máy từ Config an toàn
