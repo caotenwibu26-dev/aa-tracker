@@ -8,8 +8,8 @@ while not Players.LocalPlayer do
 end
 local LocalPlayer = Players.LocalPlayer
 
--- Cấu hình API Endpoint của Web Dashboard
-local API_URL = "https://fundamentals-plus-males-comfort.trycloudflare.com"
+-- Cấu hình API Endpoint của Web Dashboard (Dùng tên miền tĩnh Ngrok cố định)
+local API_URL = "https://parted-twelve-icky.ngrok-free.dev/api/accounts"
 local UPDATE_INTERVAL = 15 -- Đồng bộ mỗi 15 giây
 
 -- Lấy hàm HTTP Request & tên máy từ Config an toàn
