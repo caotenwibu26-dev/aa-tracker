@@ -42,15 +42,38 @@ local matchStats = {
     countedCurrentMatch = false
 }
 
--- Biến lưu Cache bảng dữ liệu trong RAM (chỉ quét getgc 1 lần duy nhất để đỡ lag VPS)
+-- Biến lưu Cache bảng dữ liệu trong RAM & Level gần nhất
 local cachedPlayerTable = nil
 local cachedUnitsTable = nil
+local lastKnownLv = 0
 
 local function formatSeconds(sec)
     sec = math.floor(tonumber(sec) or 0)
     local mins = math.floor(sec / 60)
     local secs = sec % 60
     return string.format("%02d:%02d", mins, secs)
+end
+
+local function getAccountLevel()
+    local pGui = LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui")
+    if not pGui then return lastKnownLv end
+
+    local spawnUnits = pGui:FindFirstChild("spawn_units")
+    local lives = spawnUnits and spawnUnits:FindFirstChild("Lives")
+    local main = lives and lives:FindFirstChild("Main")
+    local desc = main and main:FindFirstChild("Desc")
+    local levelLabel = desc and desc:FindFirstChild("Level")
+
+    if levelLabel and levelLabel:IsA("TextLabel") then
+        -- Chỉ tách lấy phần số ngay sau chữ "Level" (bỏ qua phần [15/156])
+        local lvStr = tostring(levelLabel.Text):match("Level%s*(%d+)")
+        local parsed = tonumber(lvStr)
+        if parsed and parsed > 0 then
+            lastKnownLv = parsed
+        end
+    end
+
+    return lastKnownLv
 end
 
 local function updateMatchStatus()
@@ -186,8 +209,7 @@ local function collectGameData()
 
     local stats = LocalPlayer:FindFirstChild("_stats")
     local currentXp = (stats and stats:FindFirstChild("player_xp") and tonumber(stats.player_xp.Value)) or 0
-    local upgradeCostObj = stats and stats:FindFirstChild("base_upgrade_cost")
-    local currentLv = (upgradeCostObj and tonumber(upgradeCostObj.Value)) or 0
+    local currentLv = getAccountLevel()
 
     local data = {
         username = LocalPlayer.Name,
@@ -195,8 +217,8 @@ local function collectGameData()
         machine = getMachineName(),
         gems = stats and stats:FindFirstChild("gem_amount") and stats.gem_amount.Value or 0,
         gold = stats and stats:FindFirstChild("gold_amount") and stats.gold_amount.Value or 0,
-        xp = currentXp, -- Lấy song song player_xp
-        lv = currentLv, -- Lấy song song base_upgrade_cost làm LV
+        xp = currentXp,
+        lv = currentLv,
         summerPearls = stats and stats:FindFirstChild("_resourceSummerPearls") and stats._resourceSummerPearls.Value or 0,
         location = getMapLocation(),
         matchTime = matchStats.matchTime,
