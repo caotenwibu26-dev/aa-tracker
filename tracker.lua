@@ -8,9 +8,9 @@ while not Players.LocalPlayer do
 end
 local LocalPlayer = Players.LocalPlayer
 
--- Cấu hình API Endpoint của Web Dashboard
-local API_URL = "https://parted-twelve-icky.ngrok-free.dev/api/accounts"
-local UPDATE_INTERVAL = 35 -- Đồng bộ mỗi 35 giây để tránh quá tải request Ngrok
+-- Cấu hình API Endpoint qua Cloudflare Tunnel (Không giới hạn băng thông)
+local API_URL = "https://processors-train-early-telecharger.trycloudflare.com/api/accounts"
+local UPDATE_INTERVAL = 35 -- Đồng bộ mỗi 35 giây
 
 -- Lấy hàm HTTP Request & tên máy từ Config an toàn
 local env = (type(getgenv) == "function" and getgenv()) or _G
@@ -65,7 +65,6 @@ local function getAccountLevel()
     local levelLabel = desc and desc:FindFirstChild("Level")
 
     if levelLabel and levelLabel:IsA("TextLabel") then
-        -- Chỉ tách lấy phần số ngay sau chữ "Level" (bỏ qua phần [15/156])
         local lvStr = tostring(levelLabel.Text):match("Level%s*(%d+)")
         local parsed = tonumber(lvStr)
         if parsed and parsed > 0 then
@@ -229,7 +228,6 @@ local function collectGameData()
         units = {}
     }
 
-    -- Chỉ quét getgc nếu chưa có cache
     if not cachedPlayerTable or not cachedUnitsTable then
         refreshGcCache()
     end
@@ -295,8 +293,7 @@ task.spawn(function()
                     Url = API_URL,
                     Method = "POST",
                     Headers = {
-                        ["Content-Type"] = "application/json",
-                        ["ngrok-skip-browser-warning"] = "true"
+                        ["Content-Type"] = "application/json"
                     },
                     Body = HttpService:JSONEncode(payload)
                 })
