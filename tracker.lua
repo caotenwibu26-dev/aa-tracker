@@ -8,9 +8,9 @@ while not Players.LocalPlayer do
 end
 local LocalPlayer = Players.LocalPlayer
 
--- Cấu hình API Endpoint của Web Dashboard (Dùng tên miền tĩnh Ngrok cố định)
+-- Cấu hình API Endpoint của Web Dashboard
 local API_URL = "https://parted-twelve-icky.ngrok-free.dev/api/accounts"
-local UPDATE_INTERVAL = 15 -- Đồng bộ mỗi 15 giây
+local UPDATE_INTERVAL = 35 -- Đồng bộ mỗi 35 giây để tránh quá tải request Ngrok
 
 -- Lấy hàm HTTP Request & tên máy từ Config an toàn
 local env = (type(getgenv) == "function" and getgenv()) or _G
@@ -41,6 +41,10 @@ local matchStats = {
     matchTime = "00:00",
     countedCurrentMatch = false
 }
+
+-- Biến lưu Cache bảng dữ liệu trong RAM (chỉ quét getgc 1 lần duy nhất để đỡ lag VPS)
+local cachedPlayerTable = nil
+local cachedUnitsTable = nil
 
 local function formatSeconds(sec)
     sec = math.floor(tonumber(sec) or 0)
@@ -155,6 +159,25 @@ local function getMapLocation()
     return "Lobby"
 end
 
+local function refreshGcCache()
+    local getGcFunc = env.getgc or getgc
+    if type(getGcFunc) ~= "function" then return end
+
+    for _, v in ipairs(getGcFunc(true)) do
+        if type(v) == "table" then
+            if not cachedPlayerTable and rawget(v, "gem_amount") ~= nil and type(rawget(v, "inventory")) == "table" then
+                cachedPlayerTable = v
+            end
+            if not cachedUnitsTable and type(rawget(v, "owned_units")) == "table" and rawget(v, "capacity") ~= nil then
+                cachedUnitsTable = v
+            end
+            if cachedPlayerTable and cachedUnitsTable then
+                break
+            end
+        end
+    end
+end
+
 local function collectGameData()
     LocalPlayer = Players.LocalPlayer
     if not LocalPlayer then return nil end
@@ -163,6 +186,8 @@ local function collectGameData()
 
     local stats = LocalPlayer:FindFirstChild("_stats")
     local currentXp = (stats and stats:FindFirstChild("player_xp") and tonumber(stats.player_xp.Value)) or 0
+    local upgradeCostObj = stats and stats:FindFirstChild("base_upgrade_cost")
+    local currentLv = (upgradeCostObj and tonumber(upgradeCostObj.Value)) or 0
 
     local data = {
         username = LocalPlayer.Name,
@@ -170,7 +195,8 @@ local function collectGameData()
         machine = getMachineName(),
         gems = stats and stats:FindFirstChild("gem_amount") and stats.gem_amount.Value or 0,
         gold = stats and stats:FindFirstChild("gold_amount") and stats.gold_amount.Value or 0,
-        xp = currentXp,
+        xp = currentXp, -- Lấy song song player_xp
+        lv = currentLv, -- Lấy song song base_upgrade_cost làm LV
         summerPearls = stats and stats:FindFirstChild("_resourceSummerPearls") and stats._resourceSummerPearls.Value or 0,
         location = getMapLocation(),
         matchTime = matchStats.matchTime,
@@ -181,53 +207,51 @@ local function collectGameData()
         units = {}
     }
 
-    local getGcFunc = env.getgc or getgc
-    if type(getGcFunc) == "function" then
-        for _, v in ipairs(getGcFunc(true)) do
-            if type(v) == "table" then
-                if rawget(v, "gem_amount") ~= nil and type(rawget(v, "inventory")) == "table" then
-                    local traitTokens = rawget(v, "trait_reroll_tokens") or 0
-                    if traitTokens > 0 then
-                        table.insert(data.items, { name = "Trait Reroll Token", count = traitTokens, category = "Token" })
-                    end
+    -- Chỉ quét getgc nếu chưa có cache
+    if not cachedPlayerTable or not cachedUnitsTable then
+        refreshGcCache()
+    end
 
-                    local curseTokens = rawget(v, "curse_reroll_tokens") or 0
-                    if curseTokens > 0 then
-                        table.insert(data.items, { name = "Curse Reroll Token", count = curseTokens, category = "Token" })
-                    end
+    if cachedPlayerTable and type(cachedPlayerTable.inventory) == "table" then
+        local traitTokens = rawget(cachedPlayerTable, "trait_reroll_tokens") or 0
+        if traitTokens > 0 then
+            table.insert(data.items, { name = "Trait Reroll Token", count = traitTokens, category = "Token" })
+        end
 
-                    local normalItems = v.inventory.normal_items
-                    if type(normalItems) == "table" then
-                        for itemName, itemVal in pairs(normalItems) do
-                            local count = type(itemVal) == "table" and (itemVal.amount or itemVal.count or 1) or itemVal
-                            if type(count) == "number" and count > 0 then
-                                table.insert(data.items, { name = tostring(itemName), count = count, category = "Normal" })
-                            end
-                        end
-                    end
+        local curseTokens = rawget(cachedPlayerTable, "curse_reroll_tokens") or 0
+        if curseTokens > 0 then
+            table.insert(data.items, { name = "Curse Reroll Token", count = curseTokens, category = "Token" })
+        end
 
-                    local uniqueItems = v.inventory.unique_items
-                    if type(uniqueItems) == "table" then
-                        for uuid, itemInfo in pairs(uniqueItems) do
-                            if type(itemInfo) == "table" then
-                                local itemName = tostring(itemInfo.item_id or itemInfo.id or itemInfo.name or uuid)
-                                table.insert(data.items, { name = itemName, count = 1, category = "Unique" })
-                            end
-                        end
-                    end
+        local normalItems = cachedPlayerTable.inventory.normal_items
+        if type(normalItems) == "table" then
+            for itemName, itemVal in pairs(normalItems) do
+                local count = type(itemVal) == "table" and (itemVal.amount or itemVal.count or 1) or itemVal
+                if type(count) == "number" and count > 0 then
+                    table.insert(data.items, { name = tostring(itemName), count = count, category = "Normal" })
                 end
+            end
+        end
 
-                if type(rawget(v, "owned_units")) == "table" and rawget(v, "capacity") ~= nil then
-                    for uuid, unitInfo in pairs(v.owned_units) do
-                        if type(unitInfo) == "table" then
-                            table.insert(data.units, {
-                                id = tostring(unitInfo.unit_id or unitInfo.name or "Unknown"),
-                                level = unitInfo.level or 1,
-                                trait = unitInfo.trait or "None"
-                            })
-                        end
-                    end
+        local uniqueItems = cachedPlayerTable.inventory.unique_items
+        if type(uniqueItems) == "table" then
+            for uuid, itemInfo in pairs(uniqueItems) do
+                if type(itemInfo) == "table" then
+                    local itemName = tostring(itemInfo.item_id or itemInfo.id or itemInfo.name or uuid)
+                    table.insert(data.items, { name = itemName, count = 1, category = "Unique" })
                 end
+            end
+        end
+    end
+
+    if cachedUnitsTable and type(cachedUnitsTable.owned_units) == "table" then
+        for uuid, unitInfo in pairs(cachedUnitsTable.owned_units) do
+            if type(unitInfo) == "table" then
+                table.insert(data.units, {
+                    id = tostring(unitInfo.unit_id or unitInfo.name or "Unknown"),
+                    level = unitInfo.level or 1,
+                    trait = unitInfo.trait or "None"
+                })
             end
         end
     end
@@ -237,18 +261,27 @@ end
 
 -- Vòng lặp gửi dữ liệu lên Web Dashboard
 task.spawn(function()
+    task.wait(math.random(1, 15))
     print("[Tracker] Đã kết nối (" .. getMachineName() .. ") ->", API_URL)
+
     while true do
+        local waitTime = UPDATE_INTERVAL
         local success, err = pcall(function()
             local payload = collectGameData()
             if payload then
                 local res = httpRequest({
                     Url = API_URL,
                     Method = "POST",
-                    Headers = { ["Content-Type"] = "application/json" },
+                    Headers = {
+                        ["Content-Type"] = "application/json",
+                        ["ngrok-skip-browser-warning"] = "true"
+                    },
                     Body = HttpService:JSONEncode(payload)
                 })
-                print("[Tracker] Trạng thái gửi:", res and res.StatusCode or "Không có phản hồi")
+                local code = res and res.StatusCode or 0
+                if code == 429 then
+                    waitTime = UPDATE_INTERVAL + 15
+                end
             end
         end)
 
@@ -256,6 +289,6 @@ task.spawn(function()
             warn("[Tracker] Lỗi đồng bộ:", err)
         end
 
-        task.wait(UPDATE_INTERVAL)
+        task.wait(waitTime)
     end
 end)
