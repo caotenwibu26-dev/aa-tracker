@@ -9,7 +9,7 @@ end
 local LocalPlayer = Players.LocalPlayer
 
 -- Cấu hình API Endpoint qua Cloudflare Tunnel (Không giới hạn băng thông)
-local API_URL = "https://signing-destiny-summer-huntington.trycloudflare.com/api/accounts"
+local API_URL = "https://essex-referenced-undefined-shots.trycloudflare.com/api/accounts"
 local UPDATE_INTERVAL = 35 -- Đồng bộ mỗi 35 giây
 
 -- Lấy hàm HTTP Request & tên máy từ Config an toàn
